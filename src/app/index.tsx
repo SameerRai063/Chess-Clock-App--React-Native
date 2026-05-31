@@ -1,98 +1,175 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useRef, useState } from "react";
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [activeButton, setActiveButton] = useState<string | null>(null);
+
+  const animateButton = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start(() => {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  const handleClockPress = () => {
+    animateButton();
+    setTimeout(() => router.push("/clock"), 100);
+  };
+
+  const handleSoundPress = () => {
+    animateButton();
+    setTimeout(() => router.push("/sound"), 100);
+  };
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <SafeAreaView style={styles.container}>
+      {/* Custom Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerText}>Customizable Chess Clock</Text>
+      </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+      {/* Main Content */}
+      <View style={styles.content}>
+        <FontAwesome5
+          name="chess-queen"
+          size={80}
+          color="#E8C96D"
+          style={styles.icon}
+        />
+        <Text style={styles.tagline}>Master Your Time, Master Your Game</Text>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+        <View style={styles.buttonContainer}>
+          {/* Chess Clock Button */}
+          <TouchableOpacity
+            style={styles.primaryButton}
+            activeOpacity={0.8}
+            onPress={handleClockPress}
+          >
+            <MaterialIcons
+              name="schedule"
+              size={24}
+              color="#111"
+              style={styles.buttonIcon}
+            />
+            <Text style={styles.primaryButtonText}>Chess Clock</Text>
+          </TouchableOpacity>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+          {/* Customize Sound Button */}
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            activeOpacity={0.8}
+            onPress={handleSoundPress}
+          >
+            <MaterialIcons
+              name="volume-up"
+              size={24}
+              color="#fff"
+              style={styles.buttonIcon}
+            />
+            <Text style={styles.secondaryButtonText}>Customize Sound</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: "#1A1A1A",
   },
-  safeArea: {
+  header: {
+    backgroundColor: "#111",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  headerText: {
+    fontSize: 20,
+    fontFamily: "BebasNeue",
+    color: "#E8C96D",
+    letterSpacing: 1,
+  },
+  content: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  icon: {
+    marginBottom: 20,
   },
-  title: {
-    textAlign: 'center',
+  tagline: {
+    fontSize: 16,
+    color: "#ccc",
+    marginBottom: 40,
+    textAlign: "center",
+    fontStyle: "italic",
   },
-  code: {
-    textTransform: 'uppercase',
+  buttonContainer: {
+    width: "100%",
+    gap: 16,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  primaryButton: {
+    backgroundColor: "#E8C96D",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  primaryButtonText: {
+    fontSize: 18,
+    fontFamily: "BebasNeue",
+    color: "#111",
+    letterSpacing: 0.5,
+  },
+  secondaryButton: {
+    backgroundColor: "#222",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  secondaryButtonText: {
+    fontSize: 18,
+    fontFamily: "BebasNeue",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  buttonIcon: {
+    marginRight: 4,
   },
 });
