@@ -52,7 +52,7 @@ export default function HomeScreen() {
           color="#E8C96D"
           style={styles.icon}
         />
-        <Text style={styles.tagline}>Master Your Time, Master Your Game</Text>
+        <Text style={styles.tagline}>sdgfh</Text>
 
         <View style={styles.buttonContainer}>
           {/* Chess Clock Button */}

@@ -5,18 +5,19 @@ import { formatTime } from "@/utils/timeUtils";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type Side = "top" | "bottom" | null;
 
 export default function ClockScreen() {
-  const { minutes } = useAppStore();
+  const minutes = useAppStore((s) => s.minutes);
+  const incrementSeconds = useAppStore((s) => s.incrementSeconds);
 
   const [activeSide, setActiveSide] = useState<Side>(null);
   const [running, setRunning] = useState(false);
@@ -31,12 +32,19 @@ export default function ClockScreen() {
   const topTimeOpacity = useRef(new Animated.Value(1)).current;
   const bottomTimeOpacity = useRef(new Animated.Value(1)).current;
 
-  // Sync minutes when settings change and game is not running
+  // When minutes change (preset applied), reset the game to the new time.
   useEffect(() => {
-    if (!running) {
-      setTopTime(minutes * 60);
-      setBottomTime(minutes * 60);
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
+
+    setRunning(false);
+    setActiveSide(null);
+    setTopTime(minutes * 60);
+    setBottomTime(minutes * 60);
+    setMovesTop(0);
+    setMovesBottom(0);
   }, [minutes]);
 
   // Pulse animation for low time
@@ -125,13 +133,13 @@ export default function ClockScreen() {
   useEffect(() => {
     if (running && intervalRef.current === null) {
       startInterval();
-    } else if (!running && intervalRef.current) {
+    } else if (!running && intervalRef.current !== null) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
 
     return () => {
-      if (intervalRef.current) {
+      if (intervalRef.current !== null) {
         clearInterval(intervalRef.current);
       }
     };
@@ -143,13 +151,21 @@ export default function ClockScreen() {
     if (!running) {
       setRunning(true);
       setActiveSide(side === "top" ? "bottom" : "top");
-    } else {
-      if (activeSide !== side) return;
-      playMoveSound(muted);
-      if (side === "top") setMovesTop((m) => m + 1);
-      else setMovesBottom((m) => m + 1);
-      setActiveSide(side === "top" ? "bottom" : "top");
+      return;
     }
+
+    if (activeSide !== side) return;
+    playMoveSound(muted);
+
+    if (side === "top") {
+      setMovesTop((m) => m + 1);
+      setTopTime((t) => t + incrementSeconds);
+    } else {
+      setMovesBottom((m) => m + 1);
+      setBottomTime((t) => t + incrementSeconds);
+    }
+
+    setActiveSide(side === "top" ? "bottom" : "top");
   };
 
   const reset = () => {
@@ -157,10 +173,13 @@ export default function ClockScreen() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+
+    const currentMinutes = useAppStore.getState().minutes;
+
     setRunning(false);
     setActiveSide(null);
-    setTopTime(minutes * 60);
-    setBottomTime(minutes * 60);
+    setTopTime(currentMinutes * 60);
+    setBottomTime(currentMinutes * 60);
     setMovesTop(0);
     setMovesBottom(0);
   };
@@ -217,6 +236,12 @@ export default function ClockScreen() {
       </TouchableOpacity>
 
       {/* Middle Control Bar */}
+      <View style={styles.presetInfoBar}>
+        <Text style={styles.presetInfoText}>
+          Preset: {minutes} min
+          {incrementSeconds ? ` + ${incrementSeconds}s` : ""}
+        </Text>
+      </View>
       <View style={styles.controlBar}>
         <TouchableOpacity style={styles.controlButton} onPress={reset}>
           <MaterialIcons name="refresh" size={24} color="#E8C96D" />
@@ -321,6 +346,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     gap: 12,
+  },
+  presetInfoBar: {
+    backgroundColor: "#111",
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  presetInfoText: {
+    color: "#ccc",
+    fontSize: 12,
   },
   controlButton: {
     width: 44,

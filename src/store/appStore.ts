@@ -7,16 +7,20 @@ export interface CustomSound {
   name: string;
   uri: string;
   duration: number;
+  clipStartMillis?: number;
+  clipDurationMillis?: number;
 }
 
 export interface AppState {
   selectedSound: string;
   customSounds: CustomSound[];
   minutes: number;
+  incrementSeconds: number;
   setSelectedSound: (id: string) => void;
   addCustomSound: (s: CustomSound) => void;
   removeCustomSound: (id: string) => void;
   setMinutes: (n: number) => void;
+  setIncrementSeconds: (n: number) => void;
 }
 
 const BUILT_IN_SOUNDS = [
@@ -32,6 +36,7 @@ export const useAppStore = create<AppState>()(
       selectedSound: "classic_tick",
       customSounds: [],
       minutes: 10,
+      incrementSeconds: 0,
       setSelectedSound: (id: string) => set({ selectedSound: id }),
       addCustomSound: (s: CustomSound) =>
         set((state) => ({
@@ -42,6 +47,7 @@ export const useAppStore = create<AppState>()(
           customSounds: state.customSounds.filter((s) => s.id !== id),
         })),
       setMinutes: (n: number) => set({ minutes: n }),
+      setIncrementSeconds: (n: number) => set({ incrementSeconds: n }),
     }),
     {
       name: "app-storage",

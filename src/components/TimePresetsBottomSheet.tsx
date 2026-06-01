@@ -1,9 +1,10 @@
 import { useAppStore } from "@/store/appStore";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Alert,
     Modal,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -24,26 +25,76 @@ export default function TimePresetsBottomSheet({
   onClose,
   onApply,
 }: TimePresetsBottomSheetProps) {
-  const { minutes, setMinutes } = useAppStore();
-  const [selectedMinutes, setSelectedMinutes] = useState(minutes);
-  const [customInput, setCustomInput] = useState("");
+  const minutes = useAppStore((s) => s.minutes);
+  const incrementSeconds = useAppStore((s) => s.incrementSeconds);
+  const [minutesInput, setMinutesInput] = useState(String(minutes));
+  const [incrementInput, setIncrementInput] = useState(
+    String(incrementSeconds),
+  );
+
+  useEffect(() => {
+    if (visible) {
+      setMinutesInput(String(minutes));
+      setIncrementInput(String(incrementSeconds));
+    }
+  }, [visible, minutes, incrementSeconds]);
 
   const handlePresetSelect = (preset: number) => {
-    setSelectedMinutes(preset);
-    setCustomInput("");
+    setMinutesInput(String(preset));
   };
 
   const handleCustomApply = () => {
-    const num = parseInt(customInput, 10);
-    if (isNaN(num) || num <= 0 || num > 120) {
-      Alert.alert("Invalid Input", "Please enter a number between 1 and 120");
+    const minutesValue = parseInt(minutesInput, 10);
+    const incrementValue = parseInt(incrementInput, 10);
+
+    if (isNaN(minutesValue) || minutesValue <= 0 || minutesValue > 120) {
+      Alert.alert(
+        "Invalid Time",
+        "Please enter a number between 1 and 120 minutes.",
+      );
       return;
     }
-    setSelectedMinutes(num);
+
+    if (isNaN(incrementValue) || incrementValue < 0 || incrementValue > 60) {
+      Alert.alert(
+        "Invalid Increment",
+        "Please enter a number between 0 and 60 seconds.",
+      );
+      return;
+    }
+
+    setMinutesInput(String(minutesValue));
+    setIncrementInput(String(incrementValue));
   };
 
   const handleApply = () => {
-    setMinutes(selectedMinutes);
+    const minutesValue =
+      minutesInput.trim().length > 0 ? parseInt(minutesInput, 10) : minutes;
+    const incrementValue =
+      incrementInput.trim().length > 0
+        ? parseInt(incrementInput, 10)
+        : incrementSeconds;
+
+    if (isNaN(minutesValue) || minutesValue <= 0 || minutesValue > 120) {
+      Alert.alert(
+        "Invalid Time",
+        "Please enter a number between 1 and 120 minutes.",
+      );
+      return;
+    }
+
+    if (isNaN(incrementValue) || incrementValue < 0 || incrementValue > 60) {
+      Alert.alert(
+        "Invalid Increment",
+        "Please enter a number between 0 and 60 seconds.",
+      );
+      return;
+    }
+
+    useAppStore.setState({
+      minutes: minutesValue,
+      incrementSeconds: incrementValue,
+    });
     onApply();
   };
 
@@ -64,53 +115,101 @@ export default function TimePresetsBottomSheet({
             </TouchableOpacity>
           </View>
 
-          {/* Presets Grid */}
-          <View style={styles.presetsGrid}>
-            {PRESETS.map((preset) => (
-              <TouchableOpacity
-                key={preset}
-                style={[
-                  styles.presetCard,
-                  selectedMinutes === preset && styles.presetCardActive,
-                ]}
-                onPress={() => handlePresetSelect(preset)}
-              >
-                <Text
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Presets Grid */}
+            <View style={styles.presetsGrid}>
+              {PRESETS.map((preset) => (
+                <TouchableOpacity
+                  key={preset}
                   style={[
-                    styles.presetText,
-                    selectedMinutes === preset && styles.presetTextActive,
+                    styles.presetCard,
+                    parseInt(minutesInput, 10) === preset &&
+                      styles.presetCardActive,
                   ]}
+                  onPress={() => handlePresetSelect(preset)}
                 >
-                  {preset}m
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Custom Input */}
-          <View style={styles.customSection}>
-            <Text style={styles.customLabel}>Custom Time (minutes)</Text>
-            <View style={styles.customInputContainer}>
-              <TextInput
-                style={styles.customInput}
-                placeholder="Enter minutes"
-                placeholderTextColor="#666"
-                keyboardType="number-pad"
-                value={customInput}
-                onChangeText={setCustomInput}
-              />
-              <TouchableOpacity
-                style={styles.customButton}
-                onPress={handleCustomApply}
-              >
-                <Text style={styles.customButtonText}>Apply</Text>
-              </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.presetText,
+                      parseInt(minutesInput, 10) === preset &&
+                        styles.presetTextActive,
+                    ]}
+                  >
+                    {preset}m
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
 
-          {/* Apply Button */}
+            <Text style={styles.sectionSubtitle}>
+              Or enter a custom preset below:
+            </Text>
+
+            <View style={styles.customSectionHeader}>
+              <Text style={styles.customSectionTitle}>
+                Custom time + increment
+              </Text>
+              <Text style={styles.customSectionDescription}>
+                Enter your own time and bonus seconds per move.
+              </Text>
+            </View>
+
+            {/* Custom Input */}
+            <View style={styles.customSection}>
+              <Text style={styles.customLabel}>Custom Time (minutes)</Text>
+              <View style={styles.customInputContainer}>
+                <TextInput
+                  style={styles.customInput}
+                  placeholder="Enter minutes"
+                  placeholderTextColor="#666"
+                  keyboardType="number-pad"
+                  value={minutesInput}
+                  onChangeText={setMinutesInput}
+                />
+                <TouchableOpacity
+                  style={styles.customButton}
+                  onPress={handleCustomApply}
+                >
+                  <Text style={styles.customButtonText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.customSection}>
+              <Text style={styles.customLabel}>
+                Increment per move (seconds)
+              </Text>
+              <View style={styles.customInputContainer}>
+                <TextInput
+                  style={styles.customInput}
+                  placeholder="0"
+                  placeholderTextColor="#666"
+                  keyboardType="number-pad"
+                  value={incrementInput}
+                  onChangeText={setIncrementInput}
+                />
+                <TouchableOpacity
+                  style={styles.customButton}
+                  onPress={handleCustomApply}
+                >
+                  <Text style={styles.customButtonText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <Text style={styles.infoText}>
+              Choose a preset or enter a custom time. Then click Change to apply
+              the selected preset.
+            </Text>
+          </ScrollView>
+
+          {/* Change Button */}
           <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
-            <Text style={styles.applyButtonText}>Set Time</Text>
+            <Text style={styles.applyButtonText}>Change</Text>
           </TouchableOpacity>
 
           {/* Cancel Button */}
@@ -133,8 +232,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#1A1A1A",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 30,
-    maxHeight: "80%",
+    paddingBottom: 20,
+    height: "80%",
+  },
+  scrollArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   header: {
     flexDirection: "row",
@@ -191,6 +296,21 @@ const styles = StyleSheet.create({
     color: "#ccc",
     marginBottom: 8,
   },
+  customSectionHeader: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  customSectionTitle: {
+    color: "#E8C96D",
+    fontSize: 16,
+    fontFamily: "BebasNeue",
+    marginBottom: 4,
+  },
+  customSectionDescription: {
+    color: "#999",
+    fontSize: 12,
+    lineHeight: 18,
+  },
   customInputContainer: {
     flexDirection: "row",
     gap: 8,
@@ -224,6 +344,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
+  sectionSubtitle: {
+    color: "#ccc",
+    fontSize: 13,
+    marginHorizontal: 20,
+    marginTop: 18,
+    lineHeight: 20,
+  },
   applyButtonText: {
     color: "#111",
     fontFamily: "BebasNeue",
@@ -245,5 +372,13 @@ const styles = StyleSheet.create({
     fontFamily: "BebasNeue",
     fontSize: 16,
     letterSpacing: 0.5,
+  },
+  infoText: {
+    color: "#999",
+    fontSize: 12,
+    marginHorizontal: 20,
+    marginTop: 16,
+    textAlign: "center",
+    lineHeight: 18,
   },
 });

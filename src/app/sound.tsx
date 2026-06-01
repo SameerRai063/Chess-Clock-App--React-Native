@@ -8,6 +8,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { useState } from "react";
 import {
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,6 +28,13 @@ export default function SoundScreen() {
   const { selectedSound, customSounds, addCustomSound, removeCustomSound } =
     useAppStore();
   const [showPresets, setShowPresets] = useState(false);
+  const [pendingClip, setPendingClip] = useState<{
+    uri: string;
+    name: string;
+    fileDuration: number;
+    startSeconds: number;
+    maxStart: number;
+  } | null>(null);
 
   const handleSelectSound = (soundId: string) => {
     useAppStore.setState({ selectedSound: soundId });
@@ -47,32 +55,30 @@ export default function SoundScreen() {
       try {
         const { sound, status } = await Audio.Sound.createAsync({ uri });
         const duration = (status?.durationMillis || 0) / 1000;
-
-        if (duration > 4) {
-          Alert.alert("Too Long", "Sound must be 4 seconds or less");
-          sound.unloadAsync();
-          return;
-        }
-
-        if (customSounds.length >= 4) {
-          Alert.alert(
-            "Limit Reached",
-            "You can add a maximum of 4 custom sounds",
-          );
-          sound.unloadAsync();
-          return;
-        }
+        sound.unloadAsync();
 
         const customSoundName = name.replace(/\.[^/.]+$/, "").substring(0, 22);
-        addCustomSound({
-          id: `custom_${Date.now()}`,
-          name: customSoundName,
-          uri,
-          duration,
-        });
 
-        sound.unloadAsync();
-        Alert.alert("Success", "Sound added successfully!");
+        if (duration <= 4) {
+          addCustomSound({
+            id: `custom_${Date.now()}`,
+            name: customSoundName,
+            uri,
+            duration,
+            clipStartMillis: 0,
+            clipDurationMillis: Math.round(duration * 1000),
+          });
+          Alert.alert("Success", "Sound added successfully!");
+          return;
+        }
+
+        setPendingClip({
+          uri,
+          name: customSoundName,
+          fileDuration: duration,
+          startSeconds: 0,
+          maxStart: Math.max(0, duration - 4),
+        });
       } catch (error) {
         Alert.alert("Error", "Failed to process sound file");
       }
@@ -80,8 +86,6 @@ export default function SoundScreen() {
       console.error("Document picker error:", error);
     }
   };
-
-  const remainingSlots = 4 - customSounds.length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -161,23 +165,142 @@ export default function SoundScreen() {
         )}
 
         {/* Import Button */}
-        {customSounds.length < 4 && (
-          <TouchableOpacity
-            style={styles.importButton}
-            onPress={handleImportSound}
-          >
-            <MaterialIcons name="add" size={24} color="#111" />
-            <Text style={styles.importButtonText}>
-              Import Sound from Device
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.importButton}
+          onPress={handleImportSound}
+        >
+          <MaterialIcons name="add" size={24} color="#111" />
+          <Text style={styles.importButtonText}>Import Sound from Device</Text>
+        </TouchableOpacity>
 
-        {/* Remaining Slots Info */}
+        {/* Sound Info */}
         <Text style={styles.infoText}>
-          You can add {remainingSlots} more custom sound
-          {remainingSlots !== 1 ? "s" : ""} (max 4 seconds each)
+          Add custom from your device. The sound must be less than 4 seconds
+          long.
         </Text>
+
+        <Modal
+          visible={!!pendingClip}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setPendingClip(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <Text style={styles.modalTitle}>Trim a 4-second clip</Text>
+              <Text style={styles.modalSubtitle}>
+                {pendingClip?.name} •{" "}
+                {formatDuration(pendingClip?.fileDuration ?? 0)}
+              </Text>
+              <Text style={styles.modalLabel}>Selected slice</Text>
+              <Text style={styles.modalTimeRange}>
+                {pendingClip?.startSeconds.toFixed(1)}s -{" "}
+                {((pendingClip?.startSeconds ?? 0) + 4).toFixed(1)}s
+              </Text>
+
+              <View style={styles.trimControls}>
+                <TouchableOpacity
+                  style={[
+                    styles.trimButton,
+                    pendingClip?.startSeconds === 0 &&
+                      styles.trimButtonDisabled,
+                  ]}
+                  disabled={!pendingClip || pendingClip.startSeconds === 0}
+                  onPress={() =>
+                    setPendingClip((current) =>
+                      current
+                        ? {
+                            ...current,
+                            startSeconds: Math.max(
+                              0,
+                              Number((current.startSeconds - 0.5).toFixed(1)),
+                            ),
+                          }
+                        : null,
+                    )
+                  }
+                >
+                  <Text style={styles.trimButtonText}>-</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.trimButton,
+                    pendingClip &&
+                      pendingClip.startSeconds >= pendingClip.maxStart &&
+                      styles.trimButtonDisabled,
+                  ]}
+                  disabled={
+                    !pendingClip ||
+                    pendingClip.startSeconds >= (pendingClip?.maxStart ?? 0)
+                  }
+                  onPress={() =>
+                    setPendingClip((current) =>
+                      current
+                        ? {
+                            ...current,
+                            startSeconds: Math.min(
+                              current.maxStart,
+                              Number((current.startSeconds + 0.5).toFixed(1)),
+                            ),
+                          }
+                        : null,
+                    )
+                  }
+                >
+                  <Text style={styles.trimButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.previewButton}
+                  onPress={async () => {
+                    if (!pendingClip) return;
+                    const previewSound = await Audio.Sound.createAsync({
+                      uri: pendingClip.uri,
+                    });
+                    await previewSound.sound.setPositionAsync(
+                      pendingClip.startSeconds * 1000,
+                    );
+                    await previewSound.sound.playAsync();
+                    setTimeout(() => {
+                      previewSound.sound.unloadAsync().catch(() => {});
+                    }, 4200);
+                  }}
+                >
+                  <Text style={styles.previewButtonText}>Preview</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveTrimButton}
+                  onPress={() => {
+                    if (!pendingClip) return;
+                    addCustomSound({
+                      id: `custom_${Date.now()}`,
+                      name: pendingClip.name,
+                      uri: pendingClip.uri,
+                      duration: 4,
+                      clipStartMillis: Math.round(
+                        pendingClip.startSeconds * 1000,
+                      ),
+                      clipDurationMillis: 4000,
+                    });
+                    setPendingClip(null);
+                    Alert.alert("Success", "Sound added successfully!");
+                  }}
+                >
+                  <Text style={styles.saveTrimButtonText}>Save Clip</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.cancelTrimButton}
+                onPress={() => setPendingClip(null)}
+              >
+                <Text style={styles.cancelTrimText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* Time Presets */}
         <Text style={styles.sectionTitle}>Time Presets</Text>
@@ -326,5 +449,105 @@ const styles = StyleSheet.create({
     fontFamily: "BebasNeue",
     color: "#fff",
     letterSpacing: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#1A1A1A",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "70%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: "BebasNeue",
+    color: "#E8C96D",
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    color: "#ccc",
+    fontSize: 12,
+    marginBottom: 20,
+  },
+  modalLabel: {
+    color: "#ccc",
+    fontSize: 13,
+    marginBottom: 6,
+  },
+  modalTimeRange: {
+    color: "#fff",
+    fontSize: 20,
+    fontFamily: "BebasNeue",
+    marginBottom: 16,
+  },
+  trimControls: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 20,
+  },
+  trimButton: {
+    flex: 1,
+    backgroundColor: "#222",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  trimButtonDisabled: {
+    opacity: 0.4,
+  },
+  trimButtonText: {
+    color: "#E8C96D",
+    fontSize: 24,
+    fontFamily: "BebasNeue",
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  previewButton: {
+    flex: 1,
+    backgroundColor: "#222",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  previewButtonText: {
+    color: "#E8C96D",
+    fontSize: 14,
+    fontFamily: "BebasNeue",
+  },
+  saveTrimButton: {
+    flex: 1,
+    backgroundColor: "#E8C96D",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  saveTrimButtonText: {
+    color: "#111",
+    fontSize: 14,
+    fontFamily: "BebasNeue",
+  },
+  cancelTrimButton: {
+    marginTop: 16,
+    backgroundColor: "#222",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  cancelTrimText: {
+    color: "#ccc",
+    fontFamily: "BebasNeue",
+    fontSize: 14,
   },
 });
