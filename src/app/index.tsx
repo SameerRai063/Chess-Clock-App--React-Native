@@ -52,7 +52,7 @@ export default function HomeScreen() {
           color="#E8C96D"
           style={styles.icon}
         />
-        <Text style={styles.tagline}>sdgfh</Text>
+        <Text style={styles.tagline}>Blunder Master Samir Rai</Text>
 
         <View style={styles.buttonContainer}>
           {/* Chess Clock Button */}
